@@ -2,9 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:my_app/screens/scan_page.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 String username = '';
 String password = '';
+String host = '';
 
 class LoginPage extends StatelessWidget {
   const LoginPage({super.key});
@@ -15,27 +19,48 @@ class LoginPage extends StatelessWidget {
     return encryptedString;
   }
 
-  void moveToHome(BuildContext context, String username, String password) {
-    final encryptedUsername = sha256Encrypt(username);
-    final encryptedPassword = sha256Encrypt(password);
-    final input = encryptedUsername + encryptedPassword;
-    const customPassword = '0fdcd1d0c7348f31e94d90d5ef4b6a23bac7617073ffe25af5d71062976e6059';
+  Future<void> moveToHome(BuildContext context, String username, String password, String host) async {
+    final storage = new FlutterSecureStorage();
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setString('host', host);
+    final String loginUrl = host + '/api/login/';
 
-    final encryptInput = sha256Encrypt(input);
+    final Map<String, String> data = {
+    'username': username,
+    'password': password,
+    };
 
-    if (encryptInput == customPassword) {
+    try {
+      final response = await http.post(
+        Uri.parse(loginUrl),
+        body: data,
+      );
+    if (response.statusCode == 200) {
+      await storage.write(key: 'access_token', value: jsonDecode(response.body)['access']);
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => const ScanPage(),
         ),
       );
+
     } else {
+      // Handle login failure (e.g., display an error message).
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Incorrect password'),
         ),
       );
     }
+    }
+    catch (e) {
+      print(e);
+    }
+    
+    // final encryptedUsername = sha256Encrypt(username);
+    // final encryptedPassword = sha256Encrypt(password);
+    // final input = encryptedUsername + encryptedPassword;
+    // const customPassword = '0fdcd1d0c7348f31e94d90d5ef4b6a23bac7617073ffe25af5d71062976e6059';
+
   }
 
   @override
@@ -55,15 +80,18 @@ class LoginPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 40),
-              // TextFormField(
-              //   decoration: InputDecoration(
-              //     hintText: 'Host',
-              //     border: OutlineInputBorder(
-              //       borderRadius: BorderRadius.circular(16),
-              //     ),
-              //   ),
-              // ),
-              // const SizedBox(height: 12),
+              TextFormField(
+                decoration: InputDecoration(
+                  hintText: 'Host',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                onChanged: (value) {
+                  host = value;
+                },
+              ),
+              const SizedBox(height: 12),
               TextFormField(
                 decoration: InputDecoration(
                   hintText: 'Username',
@@ -77,6 +105,9 @@ class LoginPage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               TextFormField(
+                obscureText: true,
+                enableSuggestions: false,
+                autocorrect: false,
                 decoration: InputDecoration(
                   hintText: 'Password',
                   border: OutlineInputBorder(
@@ -91,7 +122,7 @@ class LoginPage extends StatelessWidget {
               ElevatedButton(
                 onPressed: () {
                   // Add your login logic here
-                  moveToHome(context, username, password);
+                  moveToHome(context, username, password, host);
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue, // Background color

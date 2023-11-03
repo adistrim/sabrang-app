@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:qr_code_scanner/qr_code_scanner.dart';
+import 'package:qr_scanner_overlay/qr_scanner_overlay.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 const bgColor = Color(0xfffafafa);
 
@@ -12,6 +16,7 @@ class ScanPage extends StatefulWidget {
 
 class _ScanPageState extends State<ScanPage> {
   final GlobalKey _qrKey = GlobalKey();
+  Barcode? result;
   late QRViewController _controller;
 
   @override
@@ -71,33 +76,70 @@ class _ScanPageState extends State<ScanPage> {
           ),
           Expanded(
             flex: 4,
-            child: QRView(
-              key: _qrKey,
-              onQRViewCreated: (controller) {
-                _controller = controller;
-                controller.scannedDataStream.listen((scanData) {
-                  // Handle the scanned QR code data here
-                  print(scanData);
-                });
-              },
+            child: Stack(
+              children: [
+                QRView(
+                  key: _qrKey,
+                  onQRViewCreated: (controller) {
+                    _controller = controller;
+                    controller.scannedDataStream.listen((scanData) {
+                      setState(() {
+                        result = scanData;
+                      });
+
+                      if (result != null && result?.code != null) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(result!.code!),
+                          ),
+                        );
+                      } else {
+                        // Handle the case when result or result.code is null
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Invalid QR code data'),
+                          ),
+                        );
+                      }
+                    });
+                  },
+                ),
+                QRScannerOverlay(overlayColor: bgColor),
+              ],
             ),
           ),
-          Expanded(
-            child: Container(
-              alignment: Alignment.center,
-              child: const Text(
-                "Sabrang 2023",
-                style: TextStyle(
-                  color: Colors.black87,
-                  fontSize: 18,
-                  fontWeight: FontWeight.normal,
-                  letterSpacing: 1,
-                ),
-              ),
-            ),
-          )
+
         ]),
       ),
     );
   }
+
+  Future<void> send_data(String result) async {
+    final prefs = await SharedPreferences.getInstance();
+    final storage = new FlutterSecureStorage();
+    String? value = await storage.read(key: 'access_token');
+    final String? host = prefs.getString('host');
+    // final String endpoint = host + '/api/ticket/handle_check_in/';
+    final Map<String, String> data = {
+    'ticket_id': result,
+    };
+
+    // try {
+      // final response = await http.post(
+        // Uri.parse(endpoint),
+        // body: data,
+      // );
+    // if (response.statusCode == 200) {
+      
+
+    // } else {
+      // Handle login failure (e.g., display an error message).
+    // }
+    // }
+    // catch (e) {
+      // print(e);
+    // }
+    
+  }
+
 }
